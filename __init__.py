@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, CONF_DEFAULT_URL
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up LOE Power Off from a config entry."""
-    url = entry.data.get("url", CONF_DEFAULT_URL)
+    url = entry.data.get("url")
     group = entry.data.get("group")
 
     _LOGGER.warning("Setting up LOE Power Off entry: %s, Group: %s", entry.entry_id, group)

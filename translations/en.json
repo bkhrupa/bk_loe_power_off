@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "name": "Name"
+        },
+        "data_description": {
+          "url": "API url",
+          "group": "Group name. \"Група 1.1\" or \"Група 2.3\"",
+          "name": "Integration name in Home Assistant"
+        }
+      }
+    }
+  }
+}
