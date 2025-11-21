@@ -1,0 +1,11 @@
+{
+  "domain": "bk_loe_power_off",
+  "name": "BK LOE Power Off",
+  "version": "0.0.1",
+  "config_flow": true,
+  "documentation": "https://example.com",
+  "requirements": [
+    "beautifulsoup4==4.12.2"
+  ],
+  "codeowners": ["@bohdan"]
+}
