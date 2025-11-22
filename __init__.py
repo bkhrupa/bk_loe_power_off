@@ -1,7 +1,7 @@
 """LOE Power Off integration."""
 import logging
 import re
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -13,7 +13,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -47,6 +46,13 @@ class ScheduleCoordinator(DataUpdateCoordinator):
         )
         self._url = url
         self._group = group
+
+    @staticmethod
+    def _parse_intervals(text: str):
+        """Convert schedule string into list of [start, end] intervals."""
+        # Шукаємо всі інтервали виду "08:00 до 12:00"
+        matches = re.findall(r"(\d{2}:\d{2})\s*до\s*(\d{2}:\d{2})", text)
+        return [list(m) for m in matches]
 
     async def _async_update_data(self):
         """Fetch data from LOE API and parse schedule."""
@@ -84,8 +90,22 @@ class ScheduleCoordinator(DataUpdateCoordinator):
                 day = match.group()
 
         # Час оновлення
+        updated_datetime = None
         updated_tag = soup.find(string=lambda t: "Інформація станом на" in t)
-        updated = updated_tag.strip() if updated_tag else None
+
+        if updated_tag:
+            updated_text = updated_tag.strip()
+            match = re.search(r"(\d{2}:\d{2})\s+(\d{2}\.\d{2}\.\d{4})", updated_text)
+            if match:
+                time_part = match.group(1)
+                date_part = match.group(2)
+                dt_string = f"{date_part} {time_part}"
+
+                try:
+                    dt_obj = datetime.strptime(dt_string, "%d.%m.%Y %H:%M")
+                    updated_datetime = dt_obj.isoformat()
+                except Exception as e:
+                    _LOGGER.warning("Failed to parse updated datetime '%s': %s", dt_string, e)
 
         # Парсимо всі групи
         schedule = {}
@@ -110,9 +130,12 @@ class ScheduleCoordinator(DataUpdateCoordinator):
         if not group_schedule:
             _LOGGER.warning("Group '%s' not found in latest graph", self._group)
 
+        # 🔥 ТУТ нове — конвертуємо текст у масив інтервалів
+        parsed_intervals = self._parse_intervals(group_schedule) if group_schedule else None
+
         return {
             "day": day,
-            "updated": updated,
-            "schedule": group_schedule,
+            "updated": updated_datetime,
+            "schedule": parsed_intervals,   # ← тепер тут масив для стейту
             "all_groups": schedule,
         }
