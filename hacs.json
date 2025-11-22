@@ -1,0 +1,7 @@
+{
+  "name": "BK LOE Power Off",
+  "domain": "bk_loe_power_off",
+  "render_readme": true,
+  "country": ["UA"],
+  "iot_class": "cloud_polling"
+}
