@@ -1,5 +1,8 @@
 # BK LOE Power Off 
 
+A Home Assistant Integration for LOE PowerOn site - [https://poweron.loe.lviv.ua/](https://poweron.loe.lviv.ua/).
+
+Reads data from the webapp API.
 
 ## Example markdown card
 

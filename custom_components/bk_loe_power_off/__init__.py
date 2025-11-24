@@ -20,7 +20,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     url = entry.data.get("url")
     group = entry.data.get("group")
 
-    _LOGGER.warning("Setting up LOE Power Off entry: %s, Group: %s", entry.entry_id, group)
+    _LOGGER.info("Setting up LOE Power Off entry: %s, Group: %s", entry.entry_id, group)
 
     coordinator = ScheduleCoordinator(hass, url, group)
     await coordinator.async_config_entry_first_refresh()
@@ -42,7 +42,7 @@ class ScheduleCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=f"{DOMAIN} {group}",
-            update_interval=timedelta(minutes=15),
+            update_interval=timedelta(minutes=20),
         )
         self._url = url
         self._group = group
@@ -130,12 +130,12 @@ class ScheduleCoordinator(DataUpdateCoordinator):
         if not group_schedule:
             _LOGGER.warning("Group '%s' not found in latest graph", self._group)
 
-        # 🔥 ТУТ нове — конвертуємо текст у масив інтервалів
+        # конвертуємо текст у масив інтервалів
         parsed_intervals = self._parse_intervals(group_schedule) if group_schedule else None
 
         return {
             "day": day,
             "updated": updated_datetime,
-            "schedule": parsed_intervals,   # ← тепер тут масив для стейту
+            "schedule": parsed_intervals, # масив для стейту
             "all_groups": schedule,
         }
