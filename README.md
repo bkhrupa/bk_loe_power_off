@@ -1,8 +1,28 @@
-# BK LOE Power Off 
+# BK LOE Power Off
 
 A Home Assistant Integration for LOE PowerOn site - [https://poweron.loe.lviv.ua/](https://poweron.loe.lviv.ua/).
 
 Reads data from the webapp API.
+
+## Install
+
+### Installation via HACS
+
+Have [HACS](https://hacs.xyz/) installed, this will allow you to update easily.
+
+* Adding BK LOE Power Off to HACS 
+[https://my.home-assistant.io/redirect/hacs_repository/?owner=bkhrupa&repository=bk_loe_power_off&category=integration](https://my.home-assistant.io/redirect/hacs_repository/?owner=bkhrupa&repository=bk_loe_power_off&category=integration)
+
+
+If the link above does not work, add `https://github.com/bkhrupa/bk_loe_power_off` as a custom repository of type Integration in HACS.
+
+* Click Install on the `BK LOE Power Off` integration.
+* Restart the Home Assistant.
+
+Manual installation
+ 
+* Copy `proxmoxve`  folder from [latest release](https://github.com/bkhrupa/bk_loe_power_off/releases/latest) to [`custom_components` folder](https://developers.home-assistant.io/docs/creating_integration_file_structure/#where-home-assistant-looks-for-integrations) in your config directory.
+* Restart the Home Assistant.
 
 ## Example markdown card
 
