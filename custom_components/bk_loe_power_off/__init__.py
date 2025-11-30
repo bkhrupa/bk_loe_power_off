@@ -54,6 +54,20 @@ class ScheduleCoordinator(DataUpdateCoordinator):
         matches = re.findall(r"(\d{2}:\d{2})\s*до\s*(\d{2}:\d{2})", text)
         return [list(m) for m in matches]
 
+    @staticmethod
+    def _parse_date_from_name(name: str):
+        """Парсить дату і час з поля name."""
+        match = re.search(r"(\d{2}:\d{2}) (\d{2}\.\d{2}\.\d{4})", name)
+
+        if not match:
+            return None
+
+        time_str, date_str = match.groups()
+        try:
+            return datetime.strptime(f"{date_str} {time_str}", "%d.%m.%Y %H:%M")
+        except Exception:
+            return None
+
     async def _async_update_data(self):
         """Fetch data from LOE API and parse schedule."""
         try:
@@ -69,12 +83,34 @@ class ScheduleCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("No 'photo-grafic' menu found in API response")
 
         latest_raw_html = None
+        valid_items = []
+
         for menu in menus:
             for item in menu.get("menuItems", []):
                 for child in item.get("children", []):
+                    # get only rawHtml / rawMobileHtml
                     raw_html = child.get("rawMobileHtml") or child.get("rawHtml")
-                    if raw_html:
-                        latest_raw_html = raw_html
+                    if not raw_html:
+                        continue
+
+                    # parse date
+                    dt = self._parse_date_from_name(child.get("name", ""))
+                    if not dt:
+                        continue
+
+                    valid_items.append({
+                        "datetime": dt,
+                        "html": raw_html,
+                        "item": child
+                    })
+
+        if not valid_items:
+            raise UpdateFailed("No valid items with dates and rawHtml found")
+
+        # sort
+        valid_items.sort(key=lambda x: x["datetime"], reverse=True)
+
+        latest_raw_html = valid_items[0]["html"]
 
         if not latest_raw_html:
             raise UpdateFailed("No rawHtml found in any menu child")
