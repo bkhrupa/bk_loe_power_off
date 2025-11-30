@@ -21,7 +21,7 @@ If the link above does not work, add `https://github.com/bkhrupa/bk_loe_power_of
 
 Manual installation
  
-* Copy `proxmoxve`  folder from [latest release](https://github.com/bkhrupa/bk_loe_power_off/releases/latest) to [`custom_components` folder](https://developers.home-assistant.io/docs/creating_integration_file_structure/#where-home-assistant-looks-for-integrations) in your config directory.
+* Copy `bk_loe_power_off`  folder from [latest release](https://github.com/bkhrupa/bk_loe_power_off/releases/latest) to [`custom_components` folder](https://developers.home-assistant.io/docs/creating_integration_file_structure/#where-home-assistant-looks-for-integrations) in your config directory.
 * Restart the Home Assistant.
 
 ## Example markdown card
