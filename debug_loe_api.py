@@ -19,7 +19,8 @@ def parse_date_from_name(name: str):
 
     time_str, date_str = match.groups()
     try:
-        return datetime.strptime(f"{date_str} {time_str}", "%d.%m.%Y %H:%M")
+        dt = datetime.strptime(f"{date_str} {time_str}", "%d.%m.%Y %H:%M")
+        return int(dt.timestamp())
     except Exception:
         return None
 
@@ -49,14 +50,15 @@ async def fetch_schedule():
                     continue
 
                 # parse date
-                dt = parse_date_from_name(child.get("name", ""))
-                if not dt:
-                    continue
+                timestamp = parse_date_from_name(child.get("name", ""))
+                # if not dt:
+                #     continue
 
                 valid_items.append({
-                    "datetime": dt,
+                    "timestamp": timestamp,
+                    "name": child.get("name", ""),
                     "html": raw_html,
-                    "item": child
+                    #"item": child,
                 })
 
     if not valid_items:
@@ -64,7 +66,10 @@ async def fetch_schedule():
         return
 
     # sort
-    valid_items.sort(key=lambda x: x["datetime"], reverse=True)
+    valid_items.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    # print(json.dumps(valid_items, ensure_ascii=False, indent=2))
+    # exit(1)
 
     latest_raw_html = valid_items[0]["html"]
 
