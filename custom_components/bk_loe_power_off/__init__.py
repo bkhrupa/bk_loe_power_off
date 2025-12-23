@@ -20,16 +20,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     url = entry.data.get("url")
     group = entry.data.get("group")
 
-    _LOGGER.info("Setting up LOE Power Off entry: %s, Group: %s", entry.entry_id, group)
+    _LOGGER.info(
+        "Setting up LOE Power Off entry: %s, Group: %s",
+        entry.entry_id,
+        group,
+    )
 
     coordinator = ScheduleCoordinator(hass, url, group)
-    await coordinator.async_config_entry_first_refresh()
+
+    # Не валимо setup, якщо немає інтернету
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except UpdateFailed as err:
+        _LOGGER.warning(
+            "Initial update failed, will retry later: %s",
+            err,
+        )
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
-    )
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
     return True
 
@@ -46,11 +56,11 @@ class ScheduleCoordinator(DataUpdateCoordinator):
         )
         self._url = url
         self._group = group
+        self._last_data = None  # кеш останніх валідних даних
 
     @staticmethod
     def _parse_intervals(text: str):
         """Convert schedule string into list of [start, end] intervals."""
-        # Шукаємо всі інтервали виду "08:00 до 12:00"
         matches = re.findall(r"(\d{2}:\d{2})\s*до\s*(\d{2}:\d{2})", text)
         return [list(m) for m in matches]
 
@@ -58,7 +68,6 @@ class ScheduleCoordinator(DataUpdateCoordinator):
     def _parse_date_from_name(name: str):
         """Парсить дату і час з поля name."""
         match = re.search(r"(\d{2}:\d{2}) (\d{2}\.\d{2}\.\d{4})", name)
-
         if not match:
             return None
 
@@ -76,24 +85,30 @@ class ScheduleCoordinator(DataUpdateCoordinator):
                     data = await resp.json()
         except Exception as err:
             _LOGGER.error("Error fetching data from LOE API: %s", err)
+
+            # 🔁 fallback на кеш
+            if self._last_data is not None:
+                _LOGGER.warning("Using cached LOE data")
+                return self._last_data
+
             raise UpdateFailed(f"Error fetching data: {err}")
 
-        menus = [m for m in data.get("hydra:member", []) if m.get("type") == "photo-grafic"]
+        menus = [
+            m for m in data.get("hydra:member", [])
+            if m.get("type") == "photo-grafic"
+        ]
         if not menus:
             raise UpdateFailed("No 'photo-grafic' menu found in API response")
 
-        latest_raw_html = None
         valid_items = []
 
         for menu in menus:
             for item in menu.get("menuItems", []):
                 for child in item.get("children", []):
-                    # get only rawHtml / rawMobileHtml
                     raw_html = child.get("rawMobileHtml") or child.get("rawHtml")
                     if not raw_html:
                         continue
 
-                    # parse date
                     dt = self._parse_date_from_name(child.get("name", ""))
                     if not dt:
                         continue
@@ -101,25 +116,17 @@ class ScheduleCoordinator(DataUpdateCoordinator):
                     valid_items.append({
                         "datetime": dt,
                         "html": raw_html,
-                        "item": child
                     })
 
         if not valid_items:
             raise UpdateFailed("No valid items with dates and rawHtml found")
 
-        # sort
         valid_items.sort(key=lambda x: x["datetime"], reverse=True)
+        soup = BeautifulSoup(valid_items[0]["html"], "html.parser")
 
-        latest_raw_html = valid_items[0]["html"]
-
-        if not latest_raw_html:
-            raise UpdateFailed("No rawHtml found in any menu child")
-
-        soup = BeautifulSoup(latest_raw_html, "html.parser")
-
-        # Дата графіка (тільки дата)
-        day_tag = soup.find(string=lambda t: "Графік погодинних відключень" in t)
+        # Дата графіка
         day = None
+        day_tag = soup.find(string=lambda t: "Графік погодинних відключень" in t)
         if day_tag:
             match = re.search(r"\d{2}\.\d{2}\.\d{4}", day_tag)
             if match:
@@ -128,50 +135,56 @@ class ScheduleCoordinator(DataUpdateCoordinator):
         # Час оновлення
         updated_datetime = None
         updated_tag = soup.find(string=lambda t: "Інформація станом на" in t)
-
         if updated_tag:
-            updated_text = updated_tag.strip()
-            match = re.search(r"(\d{2}:\d{2})\s+(\d{2}\.\d{2}\.\d{4})", updated_text)
+            match = re.search(
+                r"(\d{2}:\d{2})\s+(\d{2}\.\d{2}\.\d{4})",
+                updated_tag.strip(),
+            )
             if match:
-                time_part = match.group(1)
-                date_part = match.group(2)
-                dt_string = f"{date_part} {time_part}"
-
                 try:
-                    dt_obj = datetime.strptime(dt_string, "%d.%m.%Y %H:%M")
-                    updated_datetime = dt_obj.isoformat()
-                except Exception as e:
-                    _LOGGER.warning("Failed to parse updated datetime '%s': %s", dt_string, e)
+                    updated_datetime = datetime.strptime(
+                        f"{match.group(2)} {match.group(1)}",
+                        "%d.%m.%Y %H:%M",
+                    ).isoformat()
+                except Exception as err:
+                    _LOGGER.warning("Failed to parse updated datetime: %s", err)
 
         # Парсимо всі групи
         schedule = {}
         for p in soup.find_all("p"):
             text = p.get_text(strip=True)
             if text.startswith("Група"):
-                split_index = text.find(".")
-                if split_index != -1:
-                    group_key = text[:split_index + 2].strip()
-                    group_value = text[split_index + 2:].strip()
-                    schedule[group_key] = group_value
+                idx = text.find(".")
+                if idx != -1:
+                    key = text[:idx + 2].strip()
+                    value = text[idx + 2:].strip()
+                    schedule[key] = value
 
         # Вибір групи
         group_schedule = None
         target_group = self._group.rstrip(".").strip()
         for key, val in schedule.items():
-            normalized_key = key.rstrip(".").strip()
-            if normalized_key == target_group:
+            if key.rstrip(".").strip() == target_group:
                 group_schedule = val
                 break
 
         if not group_schedule:
             _LOGGER.warning("Group '%s' not found in latest graph", self._group)
 
-        # конвертуємо текст у масив інтервалів
-        parsed_intervals = self._parse_intervals(group_schedule) if group_schedule else None
+        parsed_intervals = (
+            self._parse_intervals(group_schedule)
+            if group_schedule
+            else None
+        )
 
-        return {
+        result = {
             "day": day,
             "updated": updated_datetime,
-            "schedule": parsed_intervals, # масив для стейту
+            "schedule": parsed_intervals,
             "all_groups": schedule,
         }
+
+        # save to cache
+        self._last_data = result
+
+        return result
