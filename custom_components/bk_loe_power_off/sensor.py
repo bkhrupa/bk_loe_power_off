@@ -44,5 +44,7 @@ class LoePowerOffSensor(CoordinatorEntity, Entity):
         return {
             "day": self.coordinator.data.get("day"),
             "updated": self.coordinator.data.get("updated"),
+            "updated_at": self.coordinator.data.get("updated_at"),
+            "schedule": self.coordinator.data.get("schedule"),
             "all_groups": self.coordinator.data.get("all_groups"),
         }

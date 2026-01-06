@@ -7,7 +7,7 @@ import re
 from datetime import timedelta, datetime
 
 API_URL = "https://api.loe.lviv.ua/api/menus?page=1&type=photo-grafic"
-GROUP = "Група 1"  # змінити на потрібну групу
+GROUP = "Група 5.1"  # змінити на потрібну групу
 
 
 def parse_date_from_name(name: str):
@@ -90,7 +90,7 @@ async def fetch_schedule():
     for p in soup.find_all("p"):
         text = p.get_text(strip=True)
         if text.startswith("Група"):
-            name_part, info = text.split(".", 1)
+            name_part, info = text.split(". ", 1)
             schedule[name_part.strip()] = info.strip()
 
     print("=== Розклад по групах ===")

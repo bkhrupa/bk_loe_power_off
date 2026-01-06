@@ -1,7 +1,7 @@
 {
   "domain": "bk_loe_power_off",
   "name": "BK LOE Power Off",
-  "version": "1.0.1",
+  "version": "2026.1.6",
   "config_flow": true,
   "documentation": "https://github.com/bkhrupa/bk_loe_power_off",
   "requirements": [
