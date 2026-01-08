@@ -17,7 +17,6 @@ class LoePowerOffSensor(CoordinatorEntity, Entity):
     """Sensor for LOE power off schedule."""
 
     def __init__(self, coordinator, name: str, group: str):
-        """Initialize sensor."""
         super().__init__(coordinator)
         self._name = name
         self._group = group
@@ -35,12 +34,13 @@ class LoePowerOffSensor(CoordinatorEntity, Entity):
         """Return the state of the sensor."""
         if not self.coordinator.data:
             return None
-        return self.coordinator.data.get("schedule")
+        return self.coordinator.data.get("updated_at")
 
     @property
     def extra_state_attributes(self):
         if not self.coordinator.data:
             return {}
+
         return {
             "day": self.coordinator.data.get("day"),
             "updated": self.coordinator.data.get("updated"),

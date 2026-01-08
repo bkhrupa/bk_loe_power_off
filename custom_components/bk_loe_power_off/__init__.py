@@ -64,6 +64,7 @@ class ScheduleCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         updated_at = datetime.now().isoformat()
+        today = date.today()
 
         async with aiohttp.ClientSession() as session:
             async with session.get(self._url) as resp:
@@ -89,91 +90,109 @@ class ScheduleCoordinator(DataUpdateCoordinator):
                     if not dt:
                         continue
 
-                    valid_items.append({"datetime": dt, "html": raw_html})
+                    valid_items.append({
+                        "datetime": dt,
+                        "html": raw_html,
+                    })
 
         if not valid_items:
             raise UpdateFailed("No valid graph items")
 
+        # Сортуємо за часом: новіші перші
         valid_items.sort(key=lambda x: x["datetime"], reverse=True)
-        soup = BeautifulSoup(valid_items[0]["html"], "html.parser")
 
-        # -------------------------------
-        # ДАТА ГРАФІКА
-        # -------------------------------
-        day = None
-        day_tag = soup.find(string=lambda t: "Графік погодинних відключень" in t)
-        if day_tag:
-            m = re.search(r"\d{2}\.\d{2}\.\d{4}", day_tag)
-            if m:
-                day = m.group()
-
-        # -------------------------------
-        # ОНОВЛЕННЯ З САЙТУ
-        # -------------------------------
+        schedule_by_day = {}
+        all_groups = {}
         updated = None
-        updated_tag = soup.find(string=lambda t: "Інформація станом на" in t)
-        if updated_tag:
-            m = re.search(r"(\d{2}:\d{2})\s+(\d{2}\.\d{2}\.\d{4})", updated_tag)
-            if m:
-                updated = datetime.strptime(
-                    f"{m.group(2)} {m.group(1)}",
-                    "%d.%m.%Y %H:%M",
-                ).isoformat()
 
-        # -------------------------------
-        # ПЕРЕВІРКА АКТУАЛЬНОСТІ
-        # -------------------------------
-        today = date.today()
-        updated_ok = False
+        for item in valid_items:
+            soup = BeautifulSoup(item["html"], "html.parser")
 
-        if day:
+            # -------------------------------
+            # ДАТА ГРАФІКА
+            # -------------------------------
+            day_tag = soup.find(string=lambda t: t and "Графік погодинних відключень" in t)
+            if not day_tag:
+                continue
+
+            m = re.search(r"\d{2}\.\d{2}\.\d{4}", day_tag)
+            if not m:
+                continue
+
+            day = m.group()
+
             try:
                 graph_day = datetime.strptime(day, "%d.%m.%Y").date()
-                # дозволяємо графік, якщо він не старіший ніж 1 день
-                updated_ok = graph_day >= (today - timedelta(days=1))
+            except ValueError:
+                continue
 
-            except ValueError as err:
-                _LOGGER.warning("Invalid graph day format '%s': %s", day, err)
+            # залишаємо сьогодні + вчора + завтра
+            if graph_day < (today - timedelta(days=1)):
+                continue
 
-        if not updated_ok:
-            _LOGGER.info(
-                "Graph is outdated (day=%s, updated=%s). Clearing schedule.",
-                day,
-                updated,
+            # -------------------------------
+            # UPDATED (беремо з найновішого)
+            # -------------------------------
+            if not updated:
+                updated_tag = soup.find(
+                    string=lambda t: t and "Інформація станом на" in t
+                )
+                if updated_tag:
+                    um = re.search(
+                        r"(\d{2}:\d{2})\s+(\d{2}\.\d{2}\.\d{4})",
+                        updated_tag,
+                    )
+                    if um:
+                        updated = datetime.strptime(
+                            f"{um.group(2)} {um.group(1)}",
+                            "%d.%m.%Y %H:%M",
+                        ).isoformat()
+
+            # -------------------------------
+            # ПАРСИНГ ГРУП
+            # -------------------------------
+            groups = {}
+            for p in soup.find_all("p"):
+                text = p.get_text(strip=True)
+                if text.startswith("Група"):
+                    idx = text.find(".")
+                    if idx != -1:
+                        key = text[:idx + 2].strip()
+                        value = text[idx + 2:].strip()
+                        groups[key] = value
+
+            all_groups.update(groups)
+
+            target = self._group.rstrip(".").strip()
+            group_text = next(
+                (v for k, v in groups.items() if k.rstrip(".").strip() == target),
+                None,
             )
-            return {
-                "day": day,
-                "updated": updated,
-                "updated_at": updated_at,
-                "schedule": [],
-                "all_groups": {},
-            }
 
-        # -------------------------------
-        # ПАРСИНГ ГРУП
-        # -------------------------------
-        schedule = {}
-        for p in soup.find_all("p"):
-            text = p.get_text(strip=True)
-            if text.startswith("Група"):
-                idx = text.find(".")
-                if idx != -1:
-                    key = text[:idx + 2].strip()
-                    value = text[idx + 2:].strip()
-                    schedule[key] = value
+            intervals = self._parse_intervals(group_text) if group_text else []
 
-        target = self._group.rstrip(".").strip()
-        group_text = next(
-            (v for k, v in schedule.items() if k.rstrip(".").strip() == target),
-            None,
+            # -------------------------------
+            # Логіка залишення лише найновішого запису на день
+            # -------------------------------
+            if day not in schedule_by_day:
+                schedule_by_day[day] = intervals
+            # Якщо вже є запис на цей день, він старіший → пропускаємо
+
+        # Сортуємо дні старіші → новіші
+        schedule_by_day = dict(
+            sorted(
+                schedule_by_day.items(),
+                key=lambda x: datetime.strptime(x[0], "%d.%m.%Y"),
+            )
         )
 
-        intervals = self._parse_intervals(group_text) if group_text else []
+        # Найновіший день
+        latest_day = max(schedule_by_day.keys()) if schedule_by_day else None
 
         return {
-            "day": day,
+            "day": latest_day,
             "updated": updated,
             "updated_at": updated_at,
-            "schedule": intervals,
-            "all_groups": schedule,
+            "schedule": schedule_by_day,
+            "all_groups": all_groups,
         }

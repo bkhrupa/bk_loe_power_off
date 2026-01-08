@@ -31,24 +31,25 @@ type: markdown
 content: |
   ### Графік вимкнень ([{{ strptime(state_attr('sensor.loe_power_off', 'day'), '%d.%m.%Y').strftime('%d-%m-%Y') }}](https://poweron.loe.lviv.ua))
   
-  {% set raw = states('sensor.loe_power_off') %}
-
-  {% if raw not in ['unknown', 'unavailable', None, ''] %}
-    {% set json_str = raw | replace("'", '"') %}
-    {% set intervals = json_str | from_json %}
-
-    {% if intervals %}
-      {% for interval in intervals %}
-  - {{ interval[0] }} - {{ interval[1] }}
-      {% endfor %}
-    {% else %}
+  {% set schedule = state_attr('sensor.loe_power_off', 'schedule') %}
+  
+  {% if schedule not in ['unknown', 'unavailable', None, {}] %}
+    {% set sorted_days = schedule | dictsort(by='key') %}
+    {% for day, intervals in sorted_days %}
+  **{{ day }}**
+      {% if intervals %}
+        {% for interval in intervals %}
+  - {{ interval[0] }} – {{ interval[1] }}
+        {% endfor %}
+      {% else %}
   Є електроенергія
-    {% endif %}
+      {% endif %}
+    {% endfor %}
   {% else %}
   Дані недоступні
   {% endif %}
   
-  <small>Оновлено {{ strptime(state_attr('sensor.loe_power_off', 'updated'), '%Y-%m-%dT%H:%M:%S').strftime('%H:%M %d-%m-%Y') }}/{{ strptime(state_attr('sensor.loe_power_off', 'updated_at')[0:19], '%Y-%m-%dT%H:%M:%S').strftime('%H:%M %d-%m-%Y') }}</small>
+  <small>Оновлено {{ strptime(state_attr('sensor.loe_power_off', 'updated'), '%Y-%m-%dT%H:%M:%S').strftime('%H:%M %d-%m') }}/{{ strptime(state_attr('sensor.loe_power_off', 'updated_at')[0:19], '%Y-%m-%dT%H:%M:%S').strftime('%H:%M %d-%m') }}</small>
 
 ```
 
