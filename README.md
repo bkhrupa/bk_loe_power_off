@@ -30,7 +30,7 @@ Manual installation
 type: markdown
 content: |
   {% if states('sensor.loe_power_off') in ['unknown', 'unavailable', None, {}] %}
-  ### Графік вимкнень недоступний
+  ### Графік вимкнень [недоступний](https://poweron.loe.lviv.ua)
   
   {% else %}
   
