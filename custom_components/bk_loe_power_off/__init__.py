@@ -70,9 +70,17 @@ class ScheduleCoordinator(DataUpdateCoordinator):
             async with session.get(self._url) as resp:
                 data = await resp.json()
 
+        # normalize data
+        if isinstance(data, dict):
+            members = data.get("hydra:member", [])
+        elif isinstance(data, list):
+            members = data
+        else:
+            raise UpdateFailed(f"Unexpected API response type: {type(data)}")
+
         menus = [
-            m for m in data.get("hydra:member", [])
-            if m.get("type") == "photo-grafic"
+            m for m in members
+            if isinstance(m, dict) and m.get("type") == "photo-grafic"
         ]
         if not menus:
             raise UpdateFailed("No 'photo-grafic' menu found")
