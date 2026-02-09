@@ -26,6 +26,8 @@ Manual installation
 
 ## Example markdown card
 
+<img src="asset-01.png" width="320" height="280">
+
 ```
 type: markdown
 content: |
@@ -56,24 +58,25 @@ content: |
           {% else %} 
             {% set start_dt = strptime(day ~ ' ' ~ interval[0], '%d.%m.%Y %H:%M') %} 
           {% endif %}
-  
-          {# parse end datetime, handle 24:00 #} 
+          
           {% if interval[1] == '24:00' %} 
             {% set end_dt = strptime(day ~ ' 00:00', '%d.%m.%Y %H:%M') + timedelta(days=1) %} 
           {% else %} 
             {% set end_dt = strptime(day ~ ' ' ~ interval[1], '%d.%m.%Y %H:%M') %} 
-          {% endif %} 
-              
+          {% endif %}
+          
+          {# duration #}
+          {% set duration = (end_dt - start_dt).total_seconds() / 3600 %}
+          {% set duration = duration | round(1) %}
+          {# EO duration #}
+          
           {% if end_dt.timestamp() < now_ts %} 
-            {# past interval #} 
-  - ~~{{ interval[0] }} – {{ interval[1] }}~~
+  - ~~{{ interval[0] }} – {{ interval[1] }} ({{ duration }})~~
           {% elif start_dt.timestamp() <= now_ts <= end_dt.timestamp() %} 
-            {# current interval #} 
-  - {{ interval[0] }} – {{ interval[1] }} (now)
+  - {{ interval[0] }} – {{ interval[1] }} ({{ duration }}, now)
           {% else %} 
-            {# future interval #} 
-  - {{ interval[0] }} – {{ interval[1] }}
-          {% endif %} 
+  - {{ interval[0] }} – {{ interval[1] }} ({{ duration }})
+          {% endif %}
         {% endfor %}
       {% else %}
   Є електроенергія
